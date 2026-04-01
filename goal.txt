@@ -1,0 +1,18 @@
+application protocol:
+
+can send an image over loopback from source folder to a requested destination folder
+	- will have proper encryption / obfuscation
+		- we can toggle whether we use encryption or obfuscation with a flag
+	- server can deny requests to upload to a suspicious folder for security reasons : should have a flag for if the last request was denied and
+	- a flag will let us specify whether the current image is the final one and the program can be terminated after
+	- 3 bit flag for sending mode with the following options:
+		- remove all red from image : (r, g, b) ---> (0, g, b) for all pixel in img
+		- remove all green from image : (r, g, b) ---> (r, 0, b) for all pixel in img
+		- remove all blue from image : (r, g, b) ---> (r, g, 0) for all pixel in img
+		- remove all red & green from image : (r, g, b) ---> (0, 0, b) for all pixel in img
+		- remove all blue & green from image : (r, g, b) ---> (r, 0, 0) for all pixel in img
+		- remove all blue & red from image : (r, g, b) ---> (0, g, 0) for all pixel in img
+		- send normally
+		- reserved
+	- wireshark dissector
+		
