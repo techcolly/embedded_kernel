@@ -16,3 +16,7 @@ can send an image over loopback from source folder to a requested destination fo
 		- reserved
 	- wireshark dissector
 		
+
+
+[MAGIC][FLAGS][PAYLOAD_LEN][FILENAME_LEN][PATH_LEN][PAYLOAD]
+PAYLOAD = [FILEAME][PATH][IMAGE_DATA]
