@@ -12,7 +12,7 @@
 #define RGB_BYTES 3
 
 #define PAYLOAD_SIZE (IMG_H * IMG_W * RGB_BYTES)
-#define HEADER_LEN 88
+#define HEADER_LEN 14
 #define MAX_CHUNKING_AMOUNT 50
 #define SECURITY_MODE (1 << 0)
 #define PMODE_SENDING (0b00 << 1)
@@ -76,7 +76,6 @@ Image* p3ToStruct(const char* path); // this will just return NULL if it didn't 
 int applyColorMode(uint16_t flags, Image* image); // this one actually can modify the image
 
 int imageToPayload(
-    uint16_t flags, 
     int lines, 
     int y_offset, 
     const Image* image, 
@@ -95,7 +94,7 @@ PacketList* createP3Packets(
 int serializePacket(
     const Packet* packet, 
     uint8_t* serialized_payload, 
-    int serialized_len
+    int* serialized_len
 ); // will encrypt later
 
 // ----------------------------------------------- server-side functions --------------------------------------------------- //

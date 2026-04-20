@@ -111,8 +111,22 @@ int applyColorMode(uint16_t flags, Image* image) {
     return 1; 
 }
 
-int imageToPayload(uint16_t flags, int lines, int y_offset, const Image* image, uint8_t* out_payload, uint32_t* out_len) {
+int imageToPayload(int lines, int y_offset, const Image* image, uint8_t* out_payload, uint32_t* out_len) {
+    if (!image || !out_payload || !out_len) return 1;
+
     *out_len = 0;
+    int localCounter = 0;
+
+    for (int y = y_offset; y < y_offset + lines; y++) { // encryption will be done here later
+        for (int x = 0; x < IMG_W; x++) {
+            out_payload[localCounter++] = image->bmp_img[y][x].red;
+            out_payload[localCounter++] = image->bmp_img[y][x].green;
+            out_payload[localCounter++] = image->bmp_img[y][x].blue;
+        }
+    }
+
+    *out_len = localCounter;
+    return 0;
 }
 
 PacketList* createP3Packets(uint16_t flags, const char* filename, const char* path, const Image* image, int num_chunks) {
@@ -137,10 +151,9 @@ PacketList* createP3Packets(uint16_t flags, const char* filename, const char* pa
         headers[i].filename_len = strlen(filename);
         headers[i].path_len = strlen(path);
 
-        payloads[i] = (uint8_t*)malloc((49152 / num_chunks + 400) * sizeof(uint8_t));
+        payloads[i] = (uint8_t*)malloc((PAYLOAD_SIZE / num_chunks + 400) * sizeof(uint8_t));
 
         imageToPayload(
-            headers[i].flags, 
             IMG_H / num_chunks, 
             i * (IMG_H / num_chunks), 
             image, 
@@ -155,4 +168,50 @@ PacketList* createP3Packets(uint16_t flags, const char* filename, const char* pa
     }
 
     return packetList;
+}
+
+int serializePacket(const Packet* packet, uint8_t* serialized_payload, int* serialized_len) {
+    if (!packet || !serialized_len || !serialized_payload) return 1;
+
+    int buffer_ptr = 0;
+    
+    uint16_t flags = packet->header.flags;
+    uint32_t len = packet->header.payload_len;
+    uint16_t filename_len = packet->header.filename_len;
+    uint16_t path_len = packet->header.path_len;
+    
+    memcpy(serialized_payload, packet->header.magic, MAGIC_LEN);
+    buffer_ptr += MAGIC_LEN;
+
+    serialized_payload[buffer_ptr++] = (uint8_t)(flags);
+    serialized_payload[buffer_ptr++] = (uint8_t)(flags >> 8);
+
+    serialized_payload[buffer_ptr++] = (uint8_t)(len);
+    serialized_payload[buffer_ptr++] = (uint8_t)(len >> 8);
+    serialized_payload[buffer_ptr++] = (uint8_t)(len >> 16);
+    serialized_payload[buffer_ptr++] = (uint8_t)(len >> 24);
+
+    serialized_payload[buffer_ptr++] = (uint8_t)(filename_len);
+    serialized_payload[buffer_ptr++] = (uint8_t)(filename_len >> 8);
+
+    serialized_payload[buffer_ptr++] = (uint8_t)(path_len);
+    serialized_payload[buffer_ptr++] = (uint8_t)(path_len >> 8);
+
+    // payload begins : this includes filename, path, and the actual image payload
+
+    for (int i = 0; i < filename_len; i++) {
+        serialized_payload[buffer_ptr++] = (uint8_t)(packet->filename[i]);
+    }
+
+    for (int i = 0; i < path_len; i++) {
+        serialized_payload[buffer_ptr++] = (uint8_t)(packet->path[i]);
+    }
+
+    memcpy(&serialized_payload[buffer_ptr], packet->payload, (size_t)len);
+    
+    buffer_ptr += len;
+    *serialized_len = buffer_ptr;
+
+    return 0;
+
 }
