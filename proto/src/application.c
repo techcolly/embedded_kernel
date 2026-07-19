@@ -27,10 +27,26 @@ int main() {
     int r = 1;
 
     int listening_sock = socket(AF_INET, SOCK_STREAM, 0);
-    inet_aton("127.0.0.1", (struct in_addr *)&listening_socket.sin_addr.s_addr);
-    setsockopt(listening_sock, SOL_SOCKET, SO_REUSEADDR, &r, sizeof(r));
+    if (listening_sock < 0) {
+        perror("\napplication: socket(listening_sock) failed");
+        exit(EXIT_FAILURE);
+    }
 
-    bind(listening_sock, (struct sockaddr*)&listening_socket, sizeof(listening_socket)); // will check return later
+    if (inet_aton("127.0.0.1", (struct in_addr *)&listening_socket.sin_addr.s_addr) == 0) {
+        perror("\napplication: inet_aton(listening) failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(listening_sock, SOL_SOCKET, SO_REUSEADDR, &r, sizeof(r)) < 0) {
+        perror("\napplication: setsockopt(SO_REUSEADDR) failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (bind(listening_sock, (struct sockaddr*)&listening_socket, sizeof(listening_socket)) < 0) {
+        perror("\napplication: bind(listening_sock) failed");
+        exit(EXIT_FAILURE);
+    }
+
     
     struct sockaddr_in sending_socket;
 
@@ -39,16 +55,32 @@ int main() {
     inet_aton("127.0.0.1", (struct in_addr *)&sending_socket.sin_addr.s_addr);
 
     int sending_sock = socket(AF_INET, SOCK_STREAM, 0);
-    bind(sending_sock, (struct sockaddr*)&sending_socket, sizeof(sending_socket)); // this is so we get assigned a port number
+    if (sending_sock < 0) {
+        perror("\napplication: socket(sending_sock) failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (bind(sending_sock, (struct sockaddr*)&sending_socket, sizeof(sending_socket)) < 0) {
+        perror("\napplication: bind(sending_sock) failed");
+        exit(EXIT_FAILURE);
+    }
+
 
     socklen_t len = sizeof(struct sockaddr_in);
 
-    getsockname(sending_sock, (struct sockaddr *)&sending_socket, &len);
+    if (getsockname(sending_sock, (struct sockaddr *)&sending_socket, &len) < 0) {
+        perror("\napplication: getsockname(sending_sock) failed");
+        exit(EXIT_FAILURE);
+    }
     int sending_port = ntohs(sending_socket.sin_port);
 
     len = sizeof(struct sockaddr_in);
-    getsockname(listening_sock, (struct sockaddr *)&listening_socket, &len);
+    if (getsockname(listening_sock, (struct sockaddr *)&listening_socket, &len) < 0) {
+        perror("\napplication: getsockname(listening_sock) failed");
+        exit(EXIT_FAILURE);
+    }
     int listening_port = ntohs(listening_socket.sin_port);
+
 
     printf("\n\nSockets created. Sending Port #: %d, Listening Port #: %d", sending_port, listening_port);
 
@@ -73,8 +105,8 @@ int main() {
                 printf("\nUsage: listen_port PORT");
                 continue;
             }
-            int newport = strtol(args[0], NULL, 10);
-            listening_socket.sin_port = htons(newport);
+            refreshSocket(&listening_sock, (char*)&listening_socket.sin_addr, args[0]);
+
         } 
         
         else if (strncmp(command, "sending_port", INPUT_BUF_SIZE) == 0) { // set sending port; 0 for random OS chosen port
@@ -82,8 +114,8 @@ int main() {
                 printf("\nUsage: sending_port PORT");
                 continue;
             }
-            int newport = strtol(args[0], NULL, 10);
-            sending_socket.sin_port = htons(newport);
+            refreshSocket(&sending_sock, (char*)&sending_socket.sin_addr, args[0]);
+
         }
 
         else if (strncmp(command, "listen_for", INPUT_BUF_SIZE) == 0) { // IP address to listen for (NOT the address to listen ON)
@@ -91,9 +123,14 @@ int main() {
                 printf("\nUsage: listen_for IP");
                 continue;
             }
-            inet_pton(AF_INET, args[0], &(listening_socket.sin_addr));
+            char sinp_hostformat[MAX_STRING_SIZE];
+            snprintf(sinp_hostformat, sizeof(sinp_hostformat), "%d", ntohs(listening_socket.sin_port));
+
+            refreshSocket(&listening_sock, args[0], sinp_hostformat);
+
         }
 
+        
         else if (strncmp(command, "send", INPUT_BUF_SIZE) == 0) {
             int chunks = 1;
 
@@ -142,12 +179,18 @@ int main() {
             socklen_t accepted_len = sizeof(accepted_addr);
 
             int lis_st = listen(listening_sock, 1);
+            if (lis_st < 0) {
+                perror("\napplication: listen(listening_sock) failed");
+                continue;
+            }
+            
             int acc_sock = accept(listening_sock, (struct sockaddr*)&accepted_addr, &accepted_len);
             
             if (acc_sock < 0) {
-                perror("An error occured");
+                perror("\napplication: accept(listening_sock) failed");
                 continue;
             }
+
 
             int bytesRead = 0, packetsRead = 0;
             uint8_t numPackets;
@@ -210,16 +253,16 @@ int main() {
                         if (tolower(send[0]) == 'y') {
                             snprintf(outfile_req, MAX_STRING_SIZE, "./%s", filename);
                             snprintf(infile_req, MAX_STRING_SIZE, "%s/%s", path, filename);
-                            snprintf(port_str, MAX_STRING_SIZE, "%d", ntohs(accepted_addr.sin_port));
+                            snprintf(port_str, MAX_STRING_SIZE, "%d", ntohs(sending_socket.sin_port)); // we're not sending to an ephemeral port this was decided already
                             inet_ntop(AF_INET, &accepted_addr.sin_addr, ip_str, INET_ADDRSTRLEN);
 
                             send_image_file(
                                 ip_str,          // destination IP
-                                port_str,         // destination port
+                                port_str,        // destination port
                                 infile_req,      // input image path
                                 outfile_req,     // remote output path (only the default folder atm)
-                                NULL,              // color removal mode (not supported here atm)
-                                CHUNKS_DEFAULT, // cannot change this rn
+                                NULL,            // color removal mode (not supported here atm)
+                                CHUNKS_DEFAULT,  // cannot change this rn
                                 &sending_sock
                             );
                             
@@ -233,7 +276,7 @@ int main() {
                             printf("\nInvalid Option, try again.");
                             t++;
                         }
-                    } while(t < 5);
+                    } while(t < RMODE_MAX_RETRIES);
 
                     break;
                 }
@@ -252,6 +295,30 @@ int main() {
 
                 case PMODE_STATUS: { // we'll deal with this in a bit
 
+                }
+
+                case PMODE_SYNC: { // body will contain a port and nothing else
+
+                    printf("\nSynchronization packet received.");
+                    char portbuf[32] = {0};
+                    memcpy(portbuf, buf + HEADER_LEN, sizeof(portbuf) - 1);
+                    unsigned long syn_port = strtoul(portbuf, NULL, 10);
+
+                    if (syn_port <= _SC_USHRT_MAX && syn_port > 0) { 
+                        sending_socket.sin_port = htons(syn_port);
+                        if (getsockname(sending_sock, (struct sockaddr *)&sending_socket, &len) < 0) {
+                            perror("\napplication: getsockname(sending_sock) failed");
+                            send_status_packet(STATUS_MALFORMED_PACKET, &sending_sock);
+                            break;
+                        }
+
+                        printf("\nSync successful. Sending to port: %d", (int)ntohs(sending_socket.sin_port));
+                        send_status_packet(STATUS_OK, &sending_sock);
+                    } else {
+                        printf("\nInvalid port number received.");
+                        send_status_packet(STATUS_MALFORMED_PACKET, &sending_sock);
+                    }
+                    break;
                 }
 
                 default:
@@ -305,8 +372,15 @@ int main() {
             serializePacket(reqP, sendingCurrently, &currentLen);
 
             int conn = connect(sending_sock, (struct sockaddr *)&dest, sizeof(dest));
+            if (conn < 0) {
+                perror("\napplication: connect(sending_sock) failed");
+                close(sending_sock);
+                sending_sock = socket(AF_INET, SOCK_STREAM, 0);
+                continue;
+            }
 
             write_exact(sending_sock, sendingCurrently, (size_t)currentLen);
+
 
             close(sending_sock);
             sending_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -328,6 +402,5 @@ int main() {
 
     close(listening_sock);
     close(sending_sock); 
-    free(args);
     return 0;
 }

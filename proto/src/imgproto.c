@@ -76,8 +76,9 @@ Image* p3ToStruct(const char* path) {
         return NULL;
 }
 
-int structToP3(const char* path, const char* filename, const Image* image) {
+ReturnCode structToP3(const char* path, const char* filename, const Image* image) {
     if (!path || !filename || !image) return S2P3_BAD_ARGS;
+
 
     char file_path[512];
 
@@ -120,13 +121,13 @@ int structToP3(const char* path, const char* filename, const Image* image) {
     return SUCCESS;
 }
 
-int applyColorMode(uint16_t flags, Image* image) {
+ReturnCode applyColorMode(uint16_t flags, Image* image) {
 
     int remove_R = (flags & CMODE_NO_R) != 0;
     int remove_G = (flags & CMODE_NO_G) != 0;
     int remove_B = (flags & CMODE_NO_B) != 0;
 
-    if (!remove_R && !remove_G && !remove_B) return 0;
+    if (!remove_R && !remove_G && !remove_B) return NO_COLORS_REMOVED; // not an error
 
     for (int y = 0; y < IMG_H; y++) {
         for (int x = 0; x < IMG_W; x++) { // we can optimize this later with offsetof() and using the set bits to know the offset before looping
@@ -136,11 +137,11 @@ int applyColorMode(uint16_t flags, Image* image) {
         }
     }
 
-    return 1; 
+    return SUCCESS; 
 }
 
-int imageToPayload(int lines, int y_offset, const Image* image, uint8_t* out_payload, uint32_t* out_len) {
-    if (!image || !out_payload || !out_len) return 1;
+ReturnCode imageToPayload(int lines, int y_offset, const Image* image, uint8_t* out_payload, uint32_t* out_len) {
+    if (!image || !out_payload || !out_len) return P32S_BAD_ARGS;
 
     *out_len = 0;
     int localCounter = 0;
@@ -154,7 +155,7 @@ int imageToPayload(int lines, int y_offset, const Image* image, uint8_t* out_pay
     }
 
     *out_len = localCounter;
-    return 0;
+    return SUCCESS;
 }
 
 PacketList* createP3Packets(uint16_t flags, const char* filename, const char* path, const Image* image, int num_chunks) {
@@ -258,17 +259,34 @@ int count_args(char **args) {
     return n;
 }
 
-int refreshSocket(int *sock, const char *ip, const char *port_str) {
+ReturnCode refreshSocket(int *sock, const char *ip, const char *port_str) {
+    if (!sock || !ip || !port_str) {
+        perror("\nrefreshSocket: bad args");
+        return SOCKET_SYSCALL_FAILURE;
+    }
+
     struct sockaddr_in dest;
     memset(&dest, 0, sizeof(dest));
 
     dest.sin_family = AF_INET;
     dest.sin_port = htons((uint16_t)strtol(port_str, NULL, 10));
-    inet_pton(AF_INET, ip, &dest.sin_addr);    
-    int conn = connect(*sock, (struct sockaddr *)&dest, sizeof(dest));
+
+    if (inet_pton(AF_INET, ip, &dest.sin_addr) != 1) {
+        perror("\nrefreshSocket: inet_pton failed");
+        return SOCKET_SYSCALL_FAILURE;
+    }
+
+    if (connect(*sock, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
+        perror("\nrefreshSocket: connect failed");
+        return SOCKET_SYSCALL_FAILURE;
+    }
+
+    return SUCCESS;
 }
 
-int send_image_file(
+
+ReturnCode send_image_file(
+
     const char *ip,
     const char *port_str,
     const char *infile,
@@ -321,6 +339,11 @@ int send_image_file(
     PacketList *packetsToSend = createP3Packets(FLAGS, outName, outPath, image, chunks);
 
     int conn = connect(*sending_sock, (struct sockaddr *)&dest, sizeof(dest));
+    if (conn < 0) {
+        perror("send_image_file: connect failed");
+        rc = SOCKET_SYSCALL_FAILURE;
+        goto cleanup;
+    }
 
     for (int i = 0; i < packetsToSend->count; i++) {
         uint8_t *sendingCurrently =
@@ -344,7 +367,8 @@ int send_image_file(
         return rc;
 }
 
-int send_status_packet(int status_code, int *sending_sock) {
+ReturnCode send_status_packet(int status_code, int *sending_sock) {
+
     uint16_t FLAGS = PMODE_STATUS;
 
     switch (status_code) {
@@ -357,7 +381,7 @@ int send_status_packet(int status_code, int *sending_sock) {
             break;
 
         default:
-            return -1;
+            return INVALID_STATUS_CODE;
     }
 
     Packet statusPacket;
@@ -378,10 +402,10 @@ int send_status_packet(int status_code, int *sending_sock) {
 
     write_exact(*sending_sock, sendingCurrently, (size_t)currentLen);
 
-    return 0;
+    return SUCCESS;
 }
 
-int serializePacket(const Packet* packet, uint8_t* serialized_payload, int* serialized_len) {
+ReturnCode serializePacket(const Packet* packet, uint8_t* serialized_payload, int* serialized_len) {
     if (!packet) return NO_VALID_PACKET; // no valid packet
     if (!serialized_len || !serialized_payload) return INVALID_SERIALIZATION_PTR; // invalid serialization pointer(s)
 
@@ -467,7 +491,11 @@ ssize_t read_exact(int fd, void *buf, size_t n) {
 
     while (off < n) {
         ssize_t r = recv(fd, (uint8_t*)buf + off, n - off, 0);
-        if (r <= 0) return r;  // 0=EOF, -1=error
+        if (r == 0) return 0;  // EOF
+        if (r < 0) {
+            perror("read_exact: recv failed");
+            return -1;
+        }
         off += (size_t)r;
     }
 
@@ -478,7 +506,14 @@ ssize_t write_exact(int fd, const void *buf, size_t n) {
   size_t off = 0;
   while (off < n) {
     ssize_t w = send(fd, (const char*)buf + off, n - off, 0);
-    if (w <= 0) return w;
+    if (w == 0) {
+        perror("write_exact: send returned 0");
+        return -1;
+    }
+    if (w < 0) {
+        perror("write_exact: send failed");
+        return -1;
+    }
     off += (size_t)w;
   }
   return (ssize_t)off;

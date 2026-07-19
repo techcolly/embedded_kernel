@@ -1,0 +1,10 @@
+# build artifacts
+*.o
+*.elf
+*.bin
+*.map
+*.out
+appl_wrapper
+
+# empty dir placeholder
+!.gitkeep

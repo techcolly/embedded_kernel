@@ -15,6 +15,7 @@
 #define MAX_STRING_SIZE 255
 #define MAX_ARGS 16
 #define INPUT_BUF_SIZE 2*MAX_STRING_SIZE + 20
+#define RMODE_MAX_RETRIES 5
 
 #define PAYLOAD_SIZE (IMG_H * IMG_W * RGB_BYTES)
 #define HEADER_LEN (MAGIC_LEN + 11)
@@ -24,6 +25,8 @@
 #define PMODE_SENDING (0b00 << 1)
 #define PMODE_REQUESTING (0b01 << 1)
 #define PMODE_STATUS (0b10 << 1)
+#define PMODE_SYNC (0b11 << 1)
+
 #define PMODE_MASK (0b11 << 1)
 
 #define STATUS_OK (0b000 << 3)
@@ -41,17 +44,25 @@
 #define CMODE_GRAYSCALE (0b111 << 6)
 #define MASK_CMODE (0b111 << 6)
 
-// return codes for the program not the protocol; will make this an enum later
-#define SUCCESS 0
-#define GENERIC_FAILURE 1
-#define NO_VALID_PACKET 2
-#define NULL_FILENAME_NONZERO_LENGTH 3
-#define NULL_PATH_NONZERO_LENGTH 4
-#define INVALID_SERIALIZATION_PTR 5
-#define S2P3_PATH_TOO_LONG 6
-#define S2P3_FOPEN_ERR 7
-#define S2P3_FCLOSE_ERR 8
-#define S2P3_BAD_ARGS 9
+// return codes for the program not the protocol
+
+typedef enum ReturnCode {
+    SUCCESS = 0,
+    GENERIC_FAILURE = 1,
+    NO_VALID_PACKET = 2,
+    NULL_FILENAME_NONZERO_LENGTH = 3,
+    NULL_PATH_NONZERO_LENGTH = 4,
+    INVALID_SERIALIZATION_PTR = 5,
+    S2P3_PATH_TOO_LONG = 6,
+    S2P3_FOPEN_ERR = 7,
+    S2P3_FCLOSE_ERR = 8,
+    S2P3_BAD_ARGS = 9,
+    SOCKET_SYSCALL_FAILURE = 10,
+    INVALID_STATUS_CODE = 11,
+    P32S_BAD_ARGS = 12,
+    NO_COLORS_REMOVED = 13
+} ReturnCode;
+
 
 extern const char MAGIC_BYTES[MAGIC_LEN + 1];
 
@@ -103,9 +114,9 @@ ssize_t write_exact(int fd, const void *buf, size_t n);
 
 Image* p3ToStruct(const char* path); // this will just return NULL if it didn't work
 
-int applyColorMode(uint16_t flags, Image* image); // this one actually can modify the image
+ReturnCode applyColorMode(uint16_t flags, Image* image); // this one actually can modify the image
 
-int imageToPayload(
+ReturnCode imageToPayload(
     int lines, 
     int y_offset, 
     const Image* image, 
@@ -121,7 +132,7 @@ PacketList* createP3Packets(
     int num_chunks
 ); 
 
-int serializePacket(
+ReturnCode serializePacket(
     const Packet* packet, 
     uint8_t* serialized_payload, 
     int* serialized_len
@@ -130,14 +141,11 @@ int serializePacket(
 // ----------------------------------------------- recieving functions --------------------------------------------------- //
 
 Image* wireToImage(uint8_t* buffer, const int bytesRead, const int filename_len, const int path_len);
-int structToP3(const char* path, const char* filename, const Image* image); // will return 0 or 1 depending on if it worked or not  
-
-
-
+ReturnCode structToP3(const char* path, const char* filename, const Image* image); // will return a ReturnCode
 
 Packet* requestPacket(uint16_t FLAGS, const char* reqName, const char* reqPath);
 
-int send_image_file(
+ReturnCode send_image_file(
     const char *ip,
     const char *port_str,
     const char *infile,
@@ -147,9 +155,9 @@ int send_image_file(
     int *sending_sock
 );
 
-int send_status_packet(int status_code, int *sending_sock);
+ReturnCode send_status_packet(int status_code, int *sending_sock);
 
-int refreshSocket(int *sock, const char *ip, const char *port_str); 
+ReturnCode refreshSocket(int *sock, const char *ip, const char *port_str); 
 
 int count_args(char **args);
 
