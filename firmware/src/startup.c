@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include "include/constants.h"
 #include "include/shared.h"
 
@@ -13,6 +14,7 @@ extern uint32_t _ebss;
 
 
 volatile uint32_t millis_count;
+volatile bool spi1_tx_done;
 
 
 int main(void);
@@ -93,22 +95,27 @@ void SysTick_Handler(void) {
     millis_count++;
 }
 
+extern void uart_write_isr(const char* s);
+
 void DMA2_Stream3_IRQHandler(void) { // SPI1 : ST7735R display
-    GPIOA_BSRR = (1UL << 4); // set PA4 : reset after NSS
-    DMA2_LIFCR = (1UL << 27); // clear TCIF
-    DMA2_S3CR &= ~(1UL << 0); // disable DMA 
+    while (SPI_SR(SPI1_BASE) & SPI_SR_BSY); // wait for last byte to finish shifting out before CS deassert
+    GPIOA_BSRR = (1UL << 4);        // set PA4 : CS deassert
+    DMA2_LIFCR = (1UL << 27);       // clear TCIF3
+    DMA2_S3CR &= ~(1UL << 0);       // disable DMA
+    spi1_tx_done = true;
+    uart_write_isr("ISR\n");
 }
 
 void DMA1_Stream4_IRQHandler(void) { // SPI2 : W5500 ethernet, write direction
-    GPIOB_BSRR = (1UL << 12); // set PB12 : reset after NSS
-    DMA1_HIFCR = (1UL << 5); // clear TCIF
-    DMA1_S4CR &= ~(1UL << 0); // disable DMA 
+    GPIOB_BSRR = (1UL << 12);       // set PB12 : CS deassert
+    DMA1_HIFCR = (1UL << 5);        // clear TCIF4
+    DMA1_S4CR &= ~(1UL << 0);       // disable DMA
 }
 
 void DMA1_Stream3_IRQHandler(void) { // SPI2 : W5500 ethernet, read direction
-    GPIOB_BSRR = (1UL << 12); // set PB12 : reset after NSS
-    DMA1_LIFCR = (1UL << 27); // clear TCIF
-    DMA1_S3CR &= ~(1UL << 0); // disable DMA 
+    GPIOB_BSRR = (1UL << 12);       // set PB12 : CS deassert
+    DMA1_LIFCR = (1UL << 27);       // clear TCIF3
+    DMA1_S3CR &= ~(1UL << 0);       // disable DMA
 }
 
 extern void (*__init_array_start[])(void); // start of C++ constructor pointer table in flash

@@ -1,0 +1,22 @@
+STM32F411 Pin Assignment
+========================
+
+GPIOA
+-----
+PA2   USART2 TX        AF7   -- debug serial output
+PA3   USART2 RX        AF7   -- debug serial input
+PA4   SPI1 CS          OUT   -- ST7735R chip select (active low)
+PA5   SPI1 SCK         AF5   -- ST7735R clock
+PA6   SPI1 MISO        AF5   -- ST7735R MISO (unused by display, wired for completeness)
+PA7   SPI1 MOSI        AF5   -- ST7735R data out
+PA13  SWDIO            SWD   -- debugger (reserved)
+PA14  SWCLK            SWD   -- debugger (reserved)
+
+GPIOB
+-----
+PB3   Display RST      OUT   -- ST7735R hardware reset (active low)
+PB4   Display DC       OUT   -- ST7735R data/command select (low=cmd, high=data)
+PB12  SPI2 CS          OUT   -- W5500 chip select (active low)
+PB13  SPI2 SCK         AF5   -- W5500 clock
+PB14  SPI2 MISO        AF5   -- W5500 data in
+PB15  SPI2 MOSI        AF5   -- W5500 data out

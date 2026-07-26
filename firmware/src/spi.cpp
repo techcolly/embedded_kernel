@@ -10,11 +10,11 @@
     }
 }
 
-[[nodiscard]] Spi::Status Spi::last_status() const {
+[[nodiscard]] Spi::Status Spi::spi__last_status() const noexcept {
     return last_status_;
 }
 
-void Spi::clock_init() noexcept {
+void Spi::spi__clock_init() noexcept {
     switch (this->port_) {
         case Spi::Port::SPI1: // enable SPI1 clock (RCC_APB2ENR)
             RCC_APB2ENR |= RCC_APB2ENR_SPI1EN;
@@ -36,7 +36,7 @@ void Spi::clock_init() noexcept {
 Spi::Spi(Port port)
     : base_(port_to_base(port)), port_(port), last_status_(Status::SUCCESS), cs_gpio_base_(0), cs_pin_(0) {
 
-    clock_init();
+    spi__clock_init();
     
     switch(this->port_) {
         case Spi::Port::SPI1: { // ST7735R display
@@ -69,7 +69,7 @@ Spi::Spi(Port port)
 
             DMA2_S3CR |= DMA_SCR_CHSEL(3); // channel 3; SPI1_TX
             DMA2_S3CR |= (0xAUL << 1); // enable TEIE, TCIE
-            DMA2_S3PAR = SPI_DR(SPI1_BASE);
+            DMA2_S3PAR = SPI_DR_ADDR(SPI1_BASE);
             DMA2_S3CR |= DMA_SCR_DIR_M2P;       // memory to peripheral
             DMA2_S3CR |= DMA_SCR_MINC;          // increment memory address per byte
 
@@ -116,13 +116,13 @@ Spi::Spi(Port port)
             DMA1_S4CR |= (0xAUL << 1);          // enable TEIE, TCIE
             DMA1_S4CR |= DMA_SCR_DIR_M2P;       // memory to peripheral
             DMA1_S4CR |= DMA_SCR_MINC;          // increment memory address per byte
-            DMA1_S4PAR = SPI_DR(SPI2_BASE);
+            DMA1_S4PAR = SPI_DR_ADDR(SPI2_BASE);
 
             DMA1_S3CR |= DMA_SCR_CHSEL(0);      // channel 0: SPI2_RX
             DMA1_S3CR |= (0xAUL << 1);          // enable TEIE, TCIE
             DMA1_S3CR |= DMA_SCR_DIR_P2M;       // peripheral to memory
             DMA1_S3CR |= DMA_SCR_MINC;          // increment memory address per byte
-            DMA1_S3PAR = SPI_DR(SPI2_BASE);
+            DMA1_S3PAR = SPI_DR_ADDR(SPI2_BASE);
 
             this->cs_gpio_base_ = GPIOB_BASE;
             this->cs_pin_ = 12UL;
@@ -140,8 +140,8 @@ Spi::Spi(Port port)
     }
 }
 
-void Spi::transfer(const uint8_t* tx, uint8_t* rx, uint16_t len) noexcept {
-    if (!len || (!tx && !rx) || (tx && rx) || (len > 65535)) {
+void Spi::spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len) noexcept {
+    if (!len || (!tx && !rx) || (tx && rx)) {
         this->last_status_ = Spi::Status::FAIL; // add more detailed ones later
         return;
     }

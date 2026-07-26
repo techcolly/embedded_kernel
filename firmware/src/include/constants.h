@@ -214,6 +214,7 @@
 #define SPI_CR2(base)       (*(volatile uint32_t*)((base) + 0x04UL))  // control register 2
 #define SPI_SR(base)        (*(volatile uint32_t*)((base) + 0x08UL))  // status register
 #define SPI_DR(base)        (*(volatile uint32_t*)((base) + 0x0CUL))  // data register
+#define SPI_DR_ADDR(base)   (base) + 0x0CUL                           // data register address
 
 // SPI_CR1 bits (RM0383 §20.5.1)
 #define SPI_CR1_CPHA        (1UL << 0)   // clock phase
@@ -286,6 +287,7 @@
 // DMA2 LISR/LIFCR bit positions for stream 3 — SPI1_TX (RM0383 §9.5.1)
 #define DMA2_LISR_TCIF3     (1UL << 27)
 #define DMA2_LIFCR_CTCIF3   (1UL << 27)
+#define SPI1_TRANSFER_DONE  (DMA2_LISR & DMA2_LISR_TCIF3)
 
 // DMA1 HISR/HIFCR bit positions for stream 4 — SPI2_TX (RM0383 §9.5.2)
 #define DMA1_HISR_TCIF4     (1UL << 5)
@@ -294,3 +296,47 @@
 // DMA1 LISR/LIFCR bit positions for stream 3 — SPI2_RX (RM0383 §9.5.1)
 #define DMA1_LISR_TCIF3     (1UL << 27)
 #define DMA1_LIFCR_CTCIF3   (1UL << 27)
+
+// ── ST7735R command IDs ────────────────────────────────────────────────────
+// ST7735R datasheet v1.4 §8
+
+#define ST7735_NOP          0x00  // no operation
+#define ST7735_SWRESET      0x01  // software reset
+#define ST7735_RDDID        0x04  // read display ID
+#define ST7735_RDDST        0x09  // read display status
+#define ST7735_SLPIN        0x10  // sleep in
+#define ST7735_SLPOUT       0x11  // sleep out — wait 120ms after
+#define ST7735_PTLON        0x12  // partial mode on
+#define ST7735_NORON        0x13  // normal display mode on
+#define ST7735_INVOFF       0x20  // display inversion off
+#define ST7735_INVON        0x21  // display inversion on
+#define ST7735_GAMSET       0x26  // gamma curve select
+#define ST7735_DISPOFF      0x28  // display off
+#define ST7735_DISPON       0x29  // display on
+#define ST7735_CASET        0x2A  // column address set — 4 bytes: XS_hi, XS_lo, XE_hi, XE_lo
+#define ST7735_RASET        0x2B  // row address set    — 4 bytes: YS_hi, YS_lo, YE_hi, YE_lo
+#define ST7735_RAMWR        0x2C  // memory write — pixel data follows
+#define ST7735_RAMRD        0x2E  // memory read
+#define ST7735_PTLAR        0x30  // partial area
+#define ST7735_TEON         0x35  // tearing effect line
+#define ST7735_MADCTL       0x36  // memory access control (scan order, RGB/BGR)
+#define ST7735_COLMOD       0x3A  // pixel format — 0x05 = RGB565
+#define ST7735_FRMCTR1      0xB1  // frame rate control — normal mode
+#define ST7735_FRMCTR2      0xB2  // frame rate control — idle mode
+#define ST7735_FRMCTR3      0xB3  // frame rate control — partial mode
+#define ST7735_INVCTR       0xB4  // display inversion control
+#define ST7735_PWCTR1       0xC0  // power control 1
+#define ST7735_PWCTR2       0xC1  // power control 2
+#define ST7735_PWCTR3       0xC2  // power control 3
+#define ST7735_PWCTR4       0xC3  // power control 4
+#define ST7735_PWCTR5       0xC4  // power control 5
+#define ST7735_VMCTR1       0xC5  // VCOM control 1
+#define ST7735_RDID1        0xDA  // read ID1
+#define ST7735_RDID2        0xDB  // read ID2
+#define ST7735_RDID3        0xDC  // read ID3
+#define ST7735_GMCTRP1      0xE0  // positive gamma correction (16 bytes)
+#define ST7735_GMCTRN1      0xE1  // negative gamma correction (16 bytes)
+#define ST7735_PWCTR6       0xFC  // power control 6 — partial + idle mode
+
+// packs 8-bit r,g,b (0-255 each) into RGB565 — evaluates at compile time for literal args
+#define RGB565(r, g, b)     ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | (((b) & 0xF8) >> 3)))

@@ -9,17 +9,18 @@ public:
 
     Spi(Port port);
 
-    void clock_init();
+    void spi__clock_init();
 
-    void transfer(const uint8_t* tx, uint8_t* rx, uint16_t len);
+    void spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len);
 
-    Status last_status() const;
+    Status spi__last_status() const;
 
 private:
+    uint32_t base_;
     Port     port_;
     Status   last_status_;
 
-    uint32_t base_;
+    
     uint32_t cs_gpio_base_;
     uint32_t cs_pin_;
     
