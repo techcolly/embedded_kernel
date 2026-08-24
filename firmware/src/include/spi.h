@@ -11,7 +11,7 @@ public:
 
     void spi__clock_init();
 
-    void spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len);
+    void spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len, bool w5500_full_duplex = (uint8_t)0);
 
     Status spi__last_status() const;
 

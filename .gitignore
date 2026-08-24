@@ -6,5 +6,27 @@
 *.out
 appl_wrapper
 
+# docs and other non-code
+*.md
+*.txt
+*.pdf
+*.doc
+*.docx
+*.rtf
+*.odt
+*.log
+*.csv
+
+# docs that stay tracked
+!docs/pins.txt
+!docs/goal.txt
+!docs/roadmap.md
+!docs/todo.md
+
+# test images — keep these
+!*.ppm
+!*.pgm
+!*.pbm
+
 # empty dir placeholder
 !.gitkeep

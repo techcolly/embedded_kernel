@@ -14,6 +14,7 @@ PA14  SWCLK            SWD   -- debugger (reserved)
 
 GPIOB
 -----
+PB0   W5500 RST        OUT   -- W5500 hardware reset (active low)
 PB3   Display RST      OUT   -- ST7735R hardware reset (active low)
 PB4   Display DC       OUT   -- ST7735R data/command select (low=cmd, high=data)
 PB12  SPI2 CS          OUT   -- W5500 chip select (active low)

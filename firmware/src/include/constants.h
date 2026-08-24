@@ -100,11 +100,21 @@
 #define SPI1_SCK_PIN        5U    // PA5  AF5
 #define SPI1_MISO_PIN       6U    // PA6  AF5
 #define SPI1_MOSI_PIN       7U    // PA7  AF5
+#define SPI1_CS_PIN         4U    // PA4  plain output — CS is software-driven, not AF
 
 // SPI2 pin assignments on GPIOB (DS10314 Table 9)
 #define SPI2_SCK_PIN        13U   // PB13 AF5
 #define SPI2_MISO_PIN       14U   // PB14 AF5
 #define SPI2_MOSI_PIN       15U   // PB15 AF5
+#define SPI2_CS_PIN         12U   // PB12 plain output — CS is software-driven, not AF
+
+// bit position of a pin's field within each GPIO register (RM0383 §8.4)
+#define GPIO_MODER_POS(pin)    ((pin) * 2)   // MODER, OSPEEDR, PUPDR — 2 bits per pin
+#define GPIO_OSPEEDR_POS(pin)  ((pin) * 2)
+#define GPIO_AFRL_POS(pin)     ((pin) * 4)          // AFRL covers pins 0-7
+#define GPIO_AFRH_POS(pin)     (((pin) - 8) * 4)    // AFRH covers pins 8-15
+#define GPIO_BSRR_SET(pin)     (1UL << (pin))       // drive pin high
+#define GPIO_BSRR_RESET(pin)   (1UL << ((pin) + 16))// drive pin low
 
 // ── GPIO A ─────────────────────────────────────────────────────────────────
 // RM0383 §8.4, DS10314 Table 9
@@ -340,3 +350,121 @@
 
 // packs 8-bit r,g,b (0-255 each) into RGB565 — evaluates at compile time for literal args
 #define RGB565(r, g, b)     ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | (((b) & 0xF8) >> 3)))
+
+// ── W5500 SPI frame ────────────────────────────────────────────────────────
+// W5500 datasheet §2.2 — every transaction is [addr_hi][addr_lo][control][data...]
+// control byte: BSB[7:3] block select | RWB[2] read/write | OM[1:0] operation mode
+
+#define W5500_OM_VDM        0x00  // variable data mode — CS delimits the frame
+#define W5500_OM_FDM1       0x01  // fixed 1-byte data
+#define W5500_OM_FDM2       0x02  // fixed 2-byte data
+#define W5500_OM_FDM4       0x03  // fixed 4-byte data
+
+#define W5500_RWB_READ      0x00
+#define W5500_RWB_WRITE     0x04
+
+// block select values (already shifted into BSB position)
+#define W5500_BSB_COMMON    (0x00UL << 3)
+#define W5500_BSB_SREG(n)   (((((n) << 2) | 0x01UL)) << 3)  // socket n register block
+#define W5500_BSB_STX(n)    (((((n) << 2) | 0x02UL)) << 3)  // socket n TX buffer
+#define W5500_BSB_SRX(n)    (((((n) << 2) | 0x03UL)) << 3)  // socket n RX buffer
+
+#define W5500_CTRL(bsb, rwb) ((uint8_t)((bsb) | (rwb) | W5500_OM_VDM))
+
+// ── W5500 common registers ─────────────────────────────────────────────────
+// W5500 datasheet §3.1
+
+#define W5500_MR            0x0000  // mode
+#define W5500_GAR           0x0001  // gateway IP        (4 bytes)
+#define W5500_SUBR          0x0005  // subnet mask       (4 bytes)
+#define W5500_SHAR          0x0009  // source MAC        (6 bytes)
+#define W5500_SIPR          0x000F  // source IP         (4 bytes)
+#define W5500_INTLEVEL      0x0013  // interrupt low level timer (2 bytes)
+#define W5500_IR            0x0015  // interrupt
+#define W5500_IMR           0x0016  // interrupt mask
+#define W5500_SIR           0x0017  // socket interrupt
+#define W5500_SIMR          0x0018  // socket interrupt mask
+#define W5500_RTR           0x0019  // retry time        (2 bytes)
+#define W5500_RCR           0x001B  // retry count
+#define W5500_PHYCFGR       0x002E  // PHY configuration
+#define W5500_VERSIONR      0x0039  // version — always reads 0x04
+
+#define W5500_VERSION       0x04    // expected VERSIONR value
+
+// MR bits (W5500 datasheet §3.1)
+#define W5500_MR_RST        (1UL << 7)  // software reset — self-clearing
+#define W5500_MR_WOL        (1UL << 5)  // wake on LAN
+#define W5500_MR_PB         (1UL << 4)  // ping block
+#define W5500_MR_PPPOE      (1UL << 3)  // PPPoE mode
+#define W5500_MR_FARP       (1UL << 1)  // force ARP
+
+// PHYCFGR bits (W5500 datasheet §3.1)
+#define W5500_PHYCFGR_LNK   (1UL << 0)  // link up (read-only)
+#define W5500_PHYCFGR_SPD   (1UL << 1)  // speed: 0=10M, 1=100M (read-only)
+#define W5500_PHYCFGR_DPX   (1UL << 2)  // duplex: 0=half, 1=full (read-only)
+#define W5500_PHYCFGR_RST   (1UL << 7)  // PHY reset — active low
+
+// ── W5500 socket registers ─────────────────────────────────────────────────
+// W5500 datasheet §3.2 — offsets within a socket's register block
+
+#define W5500_Sn_MR         0x0000  // socket mode
+#define W5500_Sn_CR         0x0001  // socket command
+#define W5500_Sn_IR         0x0002  // socket interrupt
+#define W5500_Sn_SR         0x0003  // socket status
+#define W5500_Sn_PORT       0x0004  // source port       (2 bytes)
+#define W5500_Sn_DHAR       0x0006  // dest MAC          (6 bytes)
+#define W5500_Sn_DIPR       0x000C  // dest IP           (4 bytes)
+#define W5500_Sn_DPORT      0x0010  // dest port         (2 bytes)
+#define W5500_Sn_MSSR       0x0012  // max segment size  (2 bytes)
+#define W5500_Sn_TOS        0x0015  // IP type of service
+#define W5500_Sn_TTL        0x0016  // IP time to live
+#define W5500_Sn_RXBUF_SIZE 0x001E  // RX buffer size in KB
+#define W5500_Sn_TXBUF_SIZE 0x001F  // TX buffer size in KB
+#define W5500_Sn_TX_FSR     0x0020  // TX free size      (2 bytes, read-only)
+#define W5500_Sn_TX_RD      0x0022  // TX read pointer   (2 bytes, read-only)
+#define W5500_Sn_TX_WR      0x0024  // TX write pointer  (2 bytes)
+#define W5500_Sn_RX_RSR     0x0026  // RX received size  (2 bytes, read-only)
+#define W5500_Sn_RX_RD      0x0028  // RX read pointer   (2 bytes)
+#define W5500_Sn_RX_WR      0x002A  // RX write pointer  (2 bytes, read-only)
+#define W5500_Sn_IMR        0x002C  // socket interrupt mask
+#define W5500_Sn_FRAG       0x002D  // fragment offset   (2 bytes)
+#define W5500_Sn_KPALVTR    0x002F  // keep-alive timer
+
+// Sn_MR protocol values (W5500 datasheet §3.2)
+#define W5500_Sn_MR_CLOSED  0x00
+#define W5500_Sn_MR_TCP     0x01
+#define W5500_Sn_MR_UDP     0x02
+#define W5500_Sn_MR_MACRAW  0x04
+
+// Sn_CR commands — register self-clears to 0x00 once the command is accepted
+#define W5500_Sn_CR_OPEN      0x01
+#define W5500_Sn_CR_LISTEN    0x02
+#define W5500_Sn_CR_CONNECT   0x04
+#define W5500_Sn_CR_DISCON    0x08
+#define W5500_Sn_CR_CLOSE     0x10
+#define W5500_Sn_CR_SEND      0x20
+#define W5500_Sn_CR_SEND_MAC  0x21
+#define W5500_Sn_CR_SEND_KEEP 0x22
+#define W5500_Sn_CR_RECV      0x40
+
+// Sn_SR status values
+#define W5500_SOCK_CLOSED      0x00
+#define W5500_SOCK_INIT        0x13
+#define W5500_SOCK_LISTEN      0x14
+#define W5500_SOCK_SYNSENT     0x15
+#define W5500_SOCK_SYNRECV     0x16
+#define W5500_SOCK_ESTABLISHED 0x17
+#define W5500_SOCK_FIN_WAIT    0x18
+#define W5500_SOCK_CLOSING     0x1A
+#define W5500_SOCK_TIME_WAIT   0x1B
+#define W5500_SOCK_CLOSE_WAIT  0x1C
+#define W5500_SOCK_LAST_ACK    0x1D
+#define W5500_SOCK_UDP         0x22
+#define W5500_SOCK_MACRAW      0x42
+
+// Sn_IR bits — write 1 to clear
+#define W5500_Sn_IR_CON     (1UL << 0)  // connection established
+#define W5500_Sn_IR_DISCON  (1UL << 1)  // FIN received
+#define W5500_Sn_IR_RECV    (1UL << 2)  // data received
+#define W5500_Sn_IR_TIMEOUT (1UL << 3)  // ARP/TCP timeout
+#define W5500_Sn_IR_SENDOK  (1UL << 4)  // SEND command complete

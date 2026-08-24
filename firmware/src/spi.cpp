@@ -1,5 +1,6 @@
 #include "include/spi.h"
 #include "include/constants.h"
+#include "include/shared.h"
 
 [[nodiscard]] uint32_t Spi::port_to_base(Port port) noexcept {
     switch (port) {
@@ -43,22 +44,21 @@ Spi::Spi(Port port)
             RCC_AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
             RCC_AHB1ENR |= RCC_AHB1ENR_DMA2EN;
 
-            GPIOA_MODER &= ~(0x3FUL << 10); // clear PA5, 6, 7
+            GPIOA_MODER &= ~(0x3FUL << GPIO_MODER_POS(SPI1_SCK_PIN)); // clear SCK, MISO, MOSI
 
-            GPIOA_MODER |= (GPIO_MODER_AF << 10);
-            GPIOA_MODER |= (GPIO_MODER_AF << 12);
-            GPIOA_MODER |= (GPIO_MODER_AF << 14);
-            
+            GPIOA_MODER |= (GPIO_MODER_AF << GPIO_MODER_POS(SPI1_SCK_PIN));
+            GPIOA_MODER |= (GPIO_MODER_AF << GPIO_MODER_POS(SPI1_MISO_PIN));
+            GPIOA_MODER |= (GPIO_MODER_AF << GPIO_MODER_POS(SPI1_MOSI_PIN));
 
-            GPIOA_AFRL &= ~(0xFUL << 20);   // clear PA5 AF
-            GPIOA_AFRL |=  (5UL << 20);
-            GPIOA_AFRL &= ~(0xFUL << 24);   // clear PA6 AF
-            GPIOA_AFRL |=  (5UL << 24);
-            GPIOA_AFRL &= ~(0xFUL << 28);   // clear PA7 AF
-            GPIOA_AFRL |=  (5UL << 28);
+            GPIOA_AFRL &= ~(0xFUL     << GPIO_AFRL_POS(SPI1_SCK_PIN));   // clear SCK AF
+            GPIOA_AFRL |=  (GPIO_AF5  << GPIO_AFRL_POS(SPI1_SCK_PIN));
+            GPIOA_AFRL &= ~(0xFUL     << GPIO_AFRL_POS(SPI1_MISO_PIN));  // clear MISO AF
+            GPIOA_AFRL |=  (GPIO_AF5  << GPIO_AFRL_POS(SPI1_MISO_PIN));
+            GPIOA_AFRL &= ~(0xFUL     << GPIO_AFRL_POS(SPI1_MOSI_PIN));  // clear MOSI AF
+            GPIOA_AFRL |=  (GPIO_AF5  << GPIO_AFRL_POS(SPI1_MOSI_PIN));
 
-            GPIOA_OSPEEDR &= ~(0x3FUL << 10);
-            GPIOA_OSPEEDR |= (0x3FUL << 10);
+            GPIOA_OSPEEDR &= ~(0x3FUL << GPIO_OSPEEDR_POS(SPI1_SCK_PIN));
+            GPIOA_OSPEEDR |=  (0x3FUL << GPIO_OSPEEDR_POS(SPI1_SCK_PIN)); // very high speed
 
             SPI_CR1(this->base_) |= ((1UL << 2) | (3UL << 8)); // set software NSS + master mode
             SPI_CR1(this->base_) &= ~((1UL << 7) | (1UL << 11)); // clear DFF and MSB bits
@@ -74,11 +74,11 @@ Spi::Spi(Port port)
             DMA2_S3CR |= DMA_SCR_MINC;          // increment memory address per byte
 
             this->cs_gpio_base_ = GPIOA_BASE;
-            this->cs_pin_ = 4UL;
+            this->cs_pin_ = SPI1_CS_PIN;
 
-            GPIOA_MODER &= ~(0x3UL << 8);           // clear PA4
-            GPIOA_MODER |= (GPIO_MODER_OUTPUT << 8); // PA4 as output
-            GPIOA_BSRR = (1UL << 4);              // PA4 high: CS deasserted
+            GPIOA_MODER &= ~(0x3UL             << GPIO_MODER_POS(SPI1_CS_PIN)); // clear CS
+            GPIOA_MODER |=  (GPIO_MODER_OUTPUT << GPIO_MODER_POS(SPI1_CS_PIN)); // CS as output
+            GPIOA_BSRR = GPIO_BSRR_SET(SPI1_CS_PIN);                            // CS high: deasserted
 
             break;
         }
@@ -87,21 +87,21 @@ Spi::Spi(Port port)
             RCC_AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
             RCC_AHB1ENR |= RCC_AHB1ENR_DMA1EN;
 
-            GPIOB_MODER &= ~(0x3FUL << 26); // clear PB13, 14, 15
+            GPIOB_MODER &= ~(0x3FUL << GPIO_MODER_POS(SPI2_SCK_PIN)); // clear SCK, MISO, MOSI
 
-            GPIOB_MODER |= (GPIO_MODER_AF << 26);
-            GPIOB_MODER |= (GPIO_MODER_AF << 28);
-            GPIOB_MODER |= (GPIO_MODER_AF << 30);
+            GPIOB_MODER |= (GPIO_MODER_AF << GPIO_MODER_POS(SPI2_SCK_PIN));
+            GPIOB_MODER |= (GPIO_MODER_AF << GPIO_MODER_POS(SPI2_MISO_PIN));
+            GPIOB_MODER |= (GPIO_MODER_AF << GPIO_MODER_POS(SPI2_MOSI_PIN));
 
-            GPIOB_AFRH &= ~(0xFUL << 20);   // clear PB13 AF
-            GPIOB_AFRH |=  (5UL << 20);
-            GPIOB_AFRH &= ~(0xFUL << 24);   // clear PB14 AF
-            GPIOB_AFRH |=  (5UL << 24);
-            GPIOB_AFRH &= ~(0xFUL << 28);   // clear PB15 AF
-            GPIOB_AFRH |=  (5UL << 28);
+            GPIOB_AFRH &= ~(0xFUL     << GPIO_AFRH_POS(SPI2_SCK_PIN));   // clear SCK AF
+            GPIOB_AFRH |=  (GPIO_AF5  << GPIO_AFRH_POS(SPI2_SCK_PIN));
+            GPIOB_AFRH &= ~(0xFUL     << GPIO_AFRH_POS(SPI2_MISO_PIN));  // clear MISO AF
+            GPIOB_AFRH |=  (GPIO_AF5  << GPIO_AFRH_POS(SPI2_MISO_PIN));
+            GPIOB_AFRH &= ~(0xFUL     << GPIO_AFRH_POS(SPI2_MOSI_PIN));  // clear MOSI AF
+            GPIOB_AFRH |=  (GPIO_AF5  << GPIO_AFRH_POS(SPI2_MOSI_PIN));
 
-            GPIOB_OSPEEDR &= ~(0x3FUL << 26);
-            GPIOB_OSPEEDR |= (0x3FUL << 26);
+            GPIOB_OSPEEDR &= ~(0x3FUL << GPIO_OSPEEDR_POS(SPI2_SCK_PIN));
+            GPIOB_OSPEEDR |=  (0x3FUL << GPIO_OSPEEDR_POS(SPI2_SCK_PIN)); // very high speed
 
             SPI_CR1(this->base_) |= ((1UL << 2) | (3UL << 8)); // set software NSS + master mode
             SPI_CR1(this->base_) &= ~((1UL << 7) | (1UL << 11)); // clear DFF and MSB bits
@@ -125,11 +125,11 @@ Spi::Spi(Port port)
             DMA1_S3PAR = SPI_DR_ADDR(SPI2_BASE);
 
             this->cs_gpio_base_ = GPIOB_BASE;
-            this->cs_pin_ = 12UL;
+            this->cs_pin_ = SPI2_CS_PIN;
 
-            GPIOB_MODER &= ~(0x3UL << 24);            // clear PB12
-            GPIOB_MODER |= (GPIO_MODER_OUTPUT << 24); // PB12 as output
-            GPIOB_BSRR = (1UL << 12);               // PB12 high: CS deasserted
+            GPIOB_MODER &= ~(0x3UL             << GPIO_MODER_POS(SPI2_CS_PIN)); // clear CS
+            GPIOB_MODER |=  (GPIO_MODER_OUTPUT << GPIO_MODER_POS(SPI2_CS_PIN)); // CS as output
+            GPIOB_BSRR = GPIO_BSRR_SET(SPI2_CS_PIN);                            // CS high: deasserted
 
             break;
         }
@@ -140,9 +140,24 @@ Spi::Spi(Port port)
     }
 }
 
-void Spi::spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len) noexcept {
-    if (!len || (!tx && !rx) || (tx && rx)) {
+void Spi::spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len, bool w5500_full_duplex) noexcept {  //   optimize later
+    if (!len || (!tx && !rx)) {
         this->last_status_ = Spi::Status::FAIL; // add more detailed ones later
+        return;
+    }
+
+    if (w5500_full_duplex)   {
+        DMA1_S4M0AR = (uint32_t)tx;
+        DMA1_S3M0AR = (uint32_t)rx;
+
+        DMA1_S4NDTR = len;
+        DMA1_S3NDTR = len;
+
+        GPIOB_BSRR = GPIO_BSRR_RESET(SPI2_CS_PIN);  // CS low: asserted
+
+        DMA1_S3CR |= (1UL << 0);            // enable RX
+        DMA1_S4CR |= (1UL << 0);            // enable TX
+        
         return;
     }
 
@@ -151,13 +166,13 @@ void Spi::spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len) noexcept {
         if (this->port_ == Spi::Port::SPI1) {
             DMA2_S3M0AR = (uint32_t)tx;
             DMA2_S3NDTR = len;
-            GPIOA_BSRR = (1UL << (4 + 16)); // reset PA4 : NSS active low
-            DMA2_S3CR |= (1UL << 0);            // enable DMA 
-            
+            GPIOA_BSRR = GPIO_BSRR_RESET(SPI1_CS_PIN); // CS low: asserted
+            DMA2_S3CR |= (1UL << 0);            // enable DMA
+
         } else if (this->port_ == Spi::Port::SPI2) {
             DMA1_S4M0AR = (uint32_t)tx;
             DMA1_S4NDTR = len;
-            GPIOB_BSRR = (1UL << (12 + 16));  // reset PB12 : NSS active low
+            GPIOB_BSRR = GPIO_BSRR_RESET(SPI2_CS_PIN); // CS low: asserted
             DMA1_S4CR |= (1UL << 0);            // enable DMA
         } else {
             return;
@@ -170,7 +185,7 @@ void Spi::spi__transfer(const uint8_t* tx, uint8_t* rx, uint16_t len) noexcept {
         } else if (this->port_ == Spi::Port::SPI2) {
             DMA1_S3M0AR = (uint32_t)rx;
             DMA1_S3NDTR = len;
-            GPIOB_BSRR = (1UL << (12 + 16));   // reset PB12 : NSS active low
+            GPIOB_BSRR = GPIO_BSRR_RESET(SPI2_CS_PIN); // CS low: asserted
             DMA1_S3CR |= (1UL << 0);            // enable DMA
         } else {
             return;

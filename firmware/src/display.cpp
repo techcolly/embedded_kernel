@@ -12,12 +12,12 @@ Display::Display(Spi& spi,
 
     RCC_AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
 
-    GPIOB_MODER &= ~(0x3UL << (rst_pin_ * 2));
-    GPIOB_MODER |=  (GPIO_MODER_OUTPUT << (rst_pin_ * 2));
-    GPIOB_BSRR = (1UL << rst_pin_);             // RST high: not in reset
+    GPIOB_MODER &= ~(0x3UL             << GPIO_MODER_POS(rst_pin_));
+    GPIOB_MODER |=  (GPIO_MODER_OUTPUT << GPIO_MODER_POS(rst_pin_));
+    GPIOB_BSRR = GPIO_BSRR_SET(rst_pin_);   // RST high: not in reset
 
-    GPIOB_MODER &= ~(0x3UL << (dc_pin_ * 2));
-    GPIOB_MODER |=  (GPIO_MODER_OUTPUT << (dc_pin_ * 2));
+    GPIOB_MODER &= ~(0x3UL             << GPIO_MODER_POS(dc_pin_));
+    GPIOB_MODER |=  (GPIO_MODER_OUTPUT << GPIO_MODER_POS(dc_pin_));
 }
 
 [[nodiscard]] Display::Status Display::last_status() const noexcept {
@@ -30,21 +30,21 @@ void Display::wait_transfer() noexcept {
 }
 
 void Display::write_command(uint8_t cmd) noexcept {
-    GPIOB_BSRR = (1UL << (dc_pin_ + 16U));
+    GPIOB_BSRR = GPIO_BSRR_RESET(dc_pin_);  // DC low: command
 
     this->spi_.spi__transfer(&cmd, nullptr, 1);
     this->wait_transfer();
 }
 
 void Display::write_data(const uint8_t* data, uint16_t len) noexcept {
-    GPIOB_BSRR = (1UL << dc_pin_);
+    GPIOB_BSRR = GPIO_BSRR_SET(dc_pin_);    // DC high: data
 
     this->spi_.spi__transfer(data, nullptr, len);
     this->wait_transfer();
 }
 
 void Display::write_data(const uint8_t data) noexcept { // overloaded version
-    GPIOB_BSRR = (1UL << dc_pin_);
+    GPIOB_BSRR = GPIO_BSRR_SET(dc_pin_);    // DC high: data
 
     this->spi_.spi__transfer(&data, nullptr, 1);
     this->wait_transfer();
@@ -59,10 +59,10 @@ void Display::defaultWindowSize() noexcept {
 }
 
 void Display::init() noexcept {
-    GPIOB_BSRR = (1UL << (rst_pin_ + 16U)); // pull RST pin low
+    GPIOB_BSRR = GPIO_BSRR_RESET(rst_pin_); // RST low: in reset
     delay(25);
 
-    GPIOB_BSRR = (1UL << rst_pin_); // pull RST pin high
+    GPIOB_BSRR = GPIO_BSRR_SET(rst_pin_);   // RST high: released
     delay(25);
 
     this->write_command(ST7735_SWRESET);
