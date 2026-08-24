@@ -20,7 +20,6 @@ appl_wrapper
 # docs that stay tracked
 !docs/pins.txt
 !docs/goal.txt
-!docs/roadmap.md
 !docs/todo.md
 
 # test images — keep these
