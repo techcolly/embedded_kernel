@@ -22,6 +22,7 @@ appl_wrapper
 !docs/goal.txt
 !docs/roadmap.md
 !docs/todo.md
+!docs/rtos_roadmap.md
 
 # test images — keep these
 !*.ppm
